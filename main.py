@@ -34,11 +34,11 @@ app.mount("/web", StaticFiles(directory="web"), name="web")
 
 model_path = "models/cifar10_model.h5"
 if os.path.exists(model_path):
-model = load_model(model_path)
+    model = load_model(model_path)
 else:
-model = create_cifar10_model()
-model = compile_model(model)
-save_model(model, model_path)
+    model = create_cifar10_model()
+    model = compile_model(model)
+    save_model(model, model_path)
 
 # Class names
 
