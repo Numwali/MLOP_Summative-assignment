@@ -32,7 +32,7 @@ app.mount("/web", StaticFiles(directory="web"), name="web")
 
 # Model path
 model_dir = "models"
-model_path = os.path.join(model_dir, "cifar10_model.h5")
+model_path = os.path.join(model_dir, "cifar10_model.keras")
 
 # Ensure directory exists
 os.makedirs(model_dir, exist_ok=True)

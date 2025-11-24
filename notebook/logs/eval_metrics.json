@@ -3,6 +3,6 @@
   "precision_weighted": 0.7885755941621058,
   "recall_weighted": 0.7782,
   "f1_weighted": 0.7723141635046125,
-  "model_used": "models/cifar10_model_latest.h5",
-  "timestamp": "2025-11-24T14:23:11.035434"
+  "model_used": "models/cifar10_model_latest.keras",
+  "timestamp": "2025-11-24T19:41:18.871836"
 }
