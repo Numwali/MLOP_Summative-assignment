@@ -15,7 +15,7 @@ import json
 # Initialize FastAPI app
 app = FastAPI(title="CIFAR-10 Dashboard API")
 
-# Enable CORS for frontend
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,14 +24,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Track server uptime
+# Track uptime
 start_time = time.time()
 
-# Serve static files for the dashboard
+# Serve dashboard files
 app.mount("/web", StaticFiles(directory="web"), name="web")
 
-# Load or create CIFAR-10 model
-model_path = "models/cifar10_model.h5"
+# Model path
+model_dir = "models"
+model_path = os.path.join(model_dir, "cifar10_model.h5")
+
+# Ensure directory exists
+os.makedirs(model_dir, exist_ok=True)
+
+# Load or create model
 if os.path.exists(model_path):
     model = load_model(model_path)
 else:
@@ -39,19 +45,17 @@ else:
     model = compile_model(model)
     save_model(model, model_path)
 
-# CIFAR-10 class labels
+# CIFAR-10 labels
 class_names = [
     'airplane', 'automobile', 'bird', 'cat', 'deer',
     'dog', 'frog', 'horse', 'ship', 'truck'
 ]
 
-
-# Root endpoint: serve dashboard HTML
+# Root endpoint
 @app.get("/", response_class=HTMLResponse)
 def read_dashboard():
     with open("web/dashboard.html", "r", encoding="utf-8") as f:
         return f.read()
-
 
 # Prediction endpoint
 @app.post("/predict")
@@ -68,8 +72,7 @@ async def predict(file: UploadFile = File(...)):
         "class_name": class_names[class_index]
     }
 
-
-# Retrain endpoint
+# Retraining endpoint
 @app.post("/retrain")
 async def retrain(files: list[UploadFile] = File(...)):
     new_images = []
@@ -77,11 +80,10 @@ async def retrain(files: list[UploadFile] = File(...)):
 
     for file in files:
         filename = file.filename
-        class_name = filename.split("/")[0]  # expects folder/class_name/image.jpg
+        class_name = filename.split("/")[0]
 
         if class_name in class_names:
             class_idx = class_names.index(class_name)
-
             img = Image.open(file.file).resize((32, 32)).convert("RGB")
             new_images.append(np.array(img))
             new_labels.append(class_idx)
@@ -89,11 +91,11 @@ async def retrain(files: list[UploadFile] = File(...)):
     if not new_images:
         return JSONResponse({"error": "No valid images found"}, status_code=400)
 
-    # Combine new images with CIFAR-10 dataset
+    # Combine datasets
     (X_train, y_train), (X_test, y_test) = cifar10.load_data()
     sample_size = min(10000, len(X_train))
-
     indices = np.random.choice(len(X_train), sample_size, replace=False)
+
     X_combined = np.concatenate([X_train[indices], np.array(new_images)])
     y_combined = np.concatenate([y_train[indices], np.array(new_labels).reshape(-1, 1)])
 
@@ -101,7 +103,7 @@ async def retrain(files: list[UploadFile] = File(...)):
     X_processed, y_processed = preprocess_data(X_combined, y_combined)
     X_test_processed, y_test_processed = preprocess_data(X_test, y_test)
 
-    # Train
+    # Train model
     model.fit(
         X_processed, y_processed,
         batch_size=128,
@@ -110,15 +112,16 @@ async def retrain(files: list[UploadFile] = File(...)):
         verbose=1
     )
 
+    # Save model
     save_model(model, model_path)
 
+    # Evaluate
     test_loss, test_acc = model.evaluate(X_test_processed, y_test_processed, verbose=0)
 
     return {
         "test_accuracy": float(test_acc),
         "test_loss": float(test_loss)
     }
-
 
 # Metrics endpoint
 @app.get("/metrics")
@@ -128,7 +131,6 @@ def get_metrics():
             metrics = json.load(f)
         return metrics
     return {"error": "No metrics found"}
-
 
 # Uptime endpoint
 @app.get("/uptime")
@@ -140,8 +142,7 @@ def uptime():
 
     return {"uptime": f"{hours}h {minutes}m {seconds}s"}
 
-
-# Run the app
+# Run app
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
