@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIFAR-10 Dashboard</title>
+    <!-- Bootstrap CDN for styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f5f6fa;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            margin-top: 30px;
+        }
+        h1, h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .card {
+            margin-bottom: 25px;
+        }
+        #prediction-result {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CIFAR-10 Image Classification Dashboard</h1>
+
+```
+    <!-- Prediction Section -->
+    <div class="card p-4 shadow-sm">
+        <h2>Predict Single Image</h2>
+        <input type="file" id="image-upload" accept="image/*" class="form-control mb-2">
+        <button id="predict-btn" class="btn btn-primary mb-2">Predict</button>
+        <div id="prediction-result"></div>
+    </div>
+
+    <!-- Retraining Section -->
+    <div class="card p-4 shadow-sm">
+        <h2>Retrain Model</h2>
+        <input type="file" id="bulk-upload" webkitdirectory directory multiple class="form-control mb-2">
+        <button id="retrain-btn" class="btn btn-success mb-2">Trigger Retraining</button>
+        <div id="retrain-status"></div>
+    </div>
+
+    <!-- Metrics Visualization Section -->
+    <div class="card p-4 shadow-sm">
+        <h2>Model Metrics</h2>
+        <div class="chart-container">
+            <canvas id="metricsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Uptime Info -->
+    <div class="card p-4 shadow-sm">
+        <h2>Server Uptime</h2>
+        <p id="uptime">Fetching uptime...</p>
+    </div>
+</div>
+
+<script>
+    const apiBase = "http://localhost:8000"; // Replace with your deployed API URL
+
+    // Prediction
+    document.getElementById('predict-btn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('image-upload');
+        if (fileInput.files.length === 0) {
+            alert("Please select an image!");
+            return;
+        }
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        document.getElementById('prediction-result').innerText = "Predicting...";
+
+        try {
+            const response = await fetch(`${apiBase}/predict`, {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            document.getElementById('prediction-result').innerText = `Prediction: ${result.class_name} (Class ${result.class_index})`;
+        } catch (err) {
+            document.getElementById('prediction-result').innerText = "Error predicting image.";
+            console.error(err);
+        }
+    });
+
+    // Retraining
+    document.getElementById('retrain-btn').addEventListener('click', async () => {
+        const bulkUpload = document.getElementById('bulk-upload');
+        if (bulkUpload.files.length === 0) {
+            alert("Please select a directory of images for retraining!");
+            return;
+        }
+        const formData = new FormData();
+        for (let i = 0; i < bulkUpload.files.length; i++) {
+            formData.append('files', bulkUpload.files[i]);
+        }
+
+        document.getElementById('retrain-status').innerText = "Retraining model...";
+
+        try {
+            const response = await fetch(`${apiBase}/retrain`, {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            document.getElementById('retrain-status').innerText = `Retraining completed! New Test Accuracy: ${result.test_accuracy}`;
+        } catch (err) {
+            document.getElementById('retrain-status').innerText = "Error retraining model.";
+            console.error(err);
+        }
+    });
+
+    // Metrics Chart
+    async function fetchMetrics() {
+        try {
+            const response = await fetch(`${apiBase}/metrics`);
+            const metrics = await response.json();
+
+            const ctx = document.getElementById('metricsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Accuracy', 'Loss', 'Precision', 'Recall', 'F1 Score'],
+                    datasets: [{
+                        label: 'CIFAR-10 Model Metrics',
+                        data: [
+                            metrics.test_accuracy,
+                            metrics.test_loss,
+                            metrics.precision,
+                            metrics.recall,
+                            metrics.f1_score
+                        ],
+                        backgroundColor: [
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(255, 206, 86, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(153, 102, 255, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Model Evaluation Metrics' }
+                    },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        } catch (err) {
+            console.error("Failed to fetch metrics:", err);
+        }
+    }
+
+    fetchMetrics();
+
+    // Uptime info
+    async function fetchUptime() {
+        try {
+            const response = await fetch(`${apiBase}/uptime`);
+            const data = await response.json();
+            document.getElementById('uptime').innerText = `Server Uptime: ${data.uptime}`;
+        } catch (err) {
+            document.getElementById('uptime').innerText = "Failed to fetch uptime info.";
+            console.error(err);
+        }
+    }
+
+    fetchUptime();
+    setInterval(fetchUptime, 60000); // Refresh uptime every 1 min
+</script>
+```
+
+</body>
+</html>
