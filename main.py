@@ -49,8 +49,8 @@ class_names = [
 
 @app.get("/", response_class=HTMLResponse)
 def read_dashboard():
-with open("web/dashboard.html", "r", encoding="utf-8") as f:
-return f.read()
+    with open("web/dashboard.html", "r", encoding="utf-8") as f:
+        return f.read()
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
