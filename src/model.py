@@ -34,8 +34,8 @@ logger.setLevel(logging.INFO)
 
 # Default paths
 MODELS_DIR = "models"
-LATEST_MODEL_FILENAME = "cifar10_model_latest.h5"
-BEST_MODEL_FILENAME = "cifar10_model_best.h5"
+LATEST_MODEL_FILENAME = "cifar10_model_latest.keras"
+BEST_MODEL_FILENAME = "cifar10_model_best.keras"
 
 
 # ----------------------------
@@ -142,7 +142,7 @@ def get_training_callbacks(models_dir: str = MODELS_DIR,
     """
     os.makedirs(models_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    checkpoint_path = os.path.join(models_dir, f"checkpoint_val_loss_{timestamp}.h5")
+    checkpoint_path = os.path.join(models_dir, f"checkpoint_val_loss_{timestamp}.keras")
 
     early_stopping = keras.callbacks.EarlyStopping(
         monitor="val_loss",
@@ -200,7 +200,7 @@ def save_model(model: keras.Model,
         model_path = os.path.join(models_dir, name)
     else:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_path = os.path.join(models_dir, f"cifar10_model_{ts}.h5")
+        model_path = os.path.join(models_dir, f"cifar10_model_{ts}.keras")
 
     model.save(model_path)
     logger.info("Model saved to %s", model_path)
@@ -221,10 +221,10 @@ def load_model(model_path: Optional[str] = None,
     """
     Load a Keras model from disk.
 
-    If model_path is None, it attempts to load the 'latest' model.
+    If model_path is None, it attempts to load the 'latest' model
 
     Args:
-        model_path: path to .h5 or SavedModel directory, or None
+        model_path: path to .keras or SavedModel directory, or None
         models_dir: directory where latest model may be stored
 
     Returns:
