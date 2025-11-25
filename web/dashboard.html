@@ -1,201 +1,171 @@
-<!DOCTYPE html>
-
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CIFAR-10 Dashboard</title>
-    <!-- Bootstrap CDN for styling -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            background-color: #f5f6fa;
-            font-family: Arial, sans-serif;
-        }
-        .container {
-            margin-top: 30px;
-        }
-        h1, h2 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .card {
-            margin-bottom: 25px;
-        }
-        #prediction-result {
-            font-size: 1.2rem;
-            font-weight: bold;
-        }
-        .chart-container {
-            width: 100%;
-            height: 400px;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CIFAR-10 Image Classification Dashboard</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { background: #f7f9fc; font-family: "Helvetica Neue", Arial, sans-serif; }
+    .container { max-width: 1000px; margin-top: 28px; margin-bottom: 50px; }
+    h1 { text-align:center; margin-bottom: 24px; }
+    .card { box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
+    .chart-box { height: 360px; }
+    .small-muted { font-size: 0.9rem; color: #666; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>CIFAR-10 Image Classification Dashboard</h1>
+  <div class="container">
+    <h1>CIFAR-10 Image Classification Dashboard</h1>
 
-```
-    <!-- Prediction Section -->
-    <div class="card p-4 shadow-sm">
-        <h2>Predict Single Image</h2>
-        <input type="file" id="image-upload" accept="image/*" class="form-control mb-2">
-        <button id="predict-btn" class="btn btn-primary mb-2">Predict</button>
-        <div id="prediction-result"></div>
+    <!-- Prediction card -->
+    <div class="card mb-4 p-4">
+      <h4 class="text-center">Predict Single Image</h4>
+      <div class="mb-2">
+        <input id="image-input" type="file" accept="image/*" class="form-control" />
+      </div>
+      <div>
+        <button id="predict-btn" class="btn btn-primary w-100">Predict</button>
+      </div>
+      <div id="predict-result" class="mt-3 small-muted"></div>
     </div>
 
-    <!-- Retraining Section -->
-    <div class="card p-4 shadow-sm">
-        <h2>Retrain Model</h2>
-        <input type="file" id="bulk-upload" webkitdirectory directory multiple class="form-control mb-2">
-        <button id="retrain-btn" class="btn btn-success mb-2">Trigger Retraining</button>
-        <div id="retrain-status"></div>
+    <!-- Retrain card -->
+    <div class="card mb-4 p-4">
+      <h4 class="text-center">Retrain Model (upload multiple files)</h4>
+      <div class="mb-2">
+        <input id="retrain-input" type="file" webkitdirectory directory multiple class="form-control" />
+        <small class="form-text text-muted">To help the retrain endpoint detect class labels, use a folder structure such as <code>cat/</code>, <code>dog/</code> and upload files with the containing folder preserved.</small>
+      </div>
+      <div>
+        <button id="retrain-btn" class="btn btn-success w-100">Trigger Retraining</button>
+      </div>
+      <div id="retrain-status" class="mt-2 small-muted"></div>
     </div>
 
-    <!-- Metrics Visualization Section -->
-    <div class="card p-4 shadow-sm">
-        <h2>Model Metrics</h2>
-        <div class="chart-container">
-            <canvas id="metricsChart"></canvas>
+    <!-- Visualizations -->
+    <div class="card mb-4 p-4">
+      <h4 class="text-center">Model Metrics</h4>
+      <div class="chart-box">
+        <canvas id="metricsChart" style="max-height:360px"></canvas>
+      </div>
+
+      <hr />
+
+      <div class="row mt-3">
+        <div class="col-md-6">
+          <h6 class="text-center">Confusion Matrix</h6>
+          <img id="confusion" src="/assets/confusion_matrix.png" alt="confusion matrix" class="img-fluid border" />
         </div>
+        <div class="col-md-6">
+          <h6 class="text-center">Sample Predictions</h6>
+          <img id="samples" src="/assets/sample_predictions.png" alt="samples" class="img-fluid border" />
+        </div>
+      </div>
     </div>
 
-    <!-- Uptime Info -->
-    <div class="card p-4 shadow-sm">
-        <h2>Server Uptime</h2>
-        <p id="uptime">Fetching uptime...</p>
+    <!-- Uptime -->
+    <div class="card p-4 mb-4">
+      <h4 class="text-center">Server Uptime</h4>
+      <p id="uptime" class="text-center small-muted">Fetching uptime...</p>
     </div>
-</div>
+  </div>
 
-<script>
-    const apiBase = "http://localhost:8000"; // Replace with your deployed API URL
+  <script>
+    const API = location.origin; // same origin; when using locally with uvicorn: http://127.0.0.1:8000
 
-    // Prediction
+    // Predict
     document.getElementById('predict-btn').addEventListener('click', async () => {
-        const fileInput = document.getElementById('image-upload');
-        if (fileInput.files.length === 0) {
-            alert("Please select an image!");
-            return;
-        }
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
+      const inp = document.getElementById('image-input');
+      if (!inp.files.length) { alert('Choose an image first'); return; }
+      const fd = new FormData();
+      fd.append('image', inp.files[0]);
 
-        document.getElementById('prediction-result').innerText = "Predicting...";
-
-        try {
-            const response = await fetch(`${apiBase}/predict`, {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            document.getElementById('prediction-result').innerText = `Prediction: ${result.class_name} (Class ${result.class_index})`;
-        } catch (err) {
-            document.getElementById('prediction-result').innerText = "Error predicting image.";
-            console.error(err);
+      document.getElementById('predict-result').innerText = "Predicting...";
+      try {
+        const r = await fetch(`${API}/predict`, { method: 'POST', body: fd });
+        const j = await r.json();
+        if (r.ok) {
+          document.getElementById('predict-result').innerText = `Prediction: ${j.predicted_class} (confidence ${(j.confidence*100).toFixed(1)}%)`;
+        } else {
+          document.getElementById('predict-result').innerText = `Error: ${j.detail || JSON.stringify(j)}`;
         }
+      } catch (e) {
+        document.getElementById('predict-result').innerText = 'Prediction failed (network).';
+        console.error(e);
+      }
     });
 
-    // Retraining
+
+    // Retrain
     document.getElementById('retrain-btn').addEventListener('click', async () => {
-        const bulkUpload = document.getElementById('bulk-upload');
-        if (bulkUpload.files.length === 0) {
-            alert("Please select a directory of images for retraining!");
-            return;
+      const inp = document.getElementById('retrain-input');
+      if (!inp.files.length) { alert('Select files (preserve folders ideally)'); return; }
+      const fd = new FormData();
+      for (let i = 0; i < inp.files.length; i++) {
+        fd.append('files', inp.files[i], inp.files[i].webkitRelativePath || inp.files[i].name);
+      }
+      document.getElementById('retrain-status').innerText = "Uploading files and retraining (this may take a short while)...";
+      try {
+        const r = await fetch(`${API}/retrain`, { method: 'POST', body: fd });
+        const j = await r.json();
+        if (r.ok) {
+          document.getElementById('retrain-status').innerText = `Retrain complete — test accuracy ${j.test_accuracy}`;
+          loadMetrics(); // refresh metrics
+        } else {
+          document.getElementById('retrain-status').innerText = `Retrain error: ${j.detail || JSON.stringify(j)}`;
         }
-        const formData = new FormData();
-        for (let i = 0; i < bulkUpload.files.length; i++) {
-            formData.append('files', bulkUpload.files[i]);
-        }
-
-        document.getElementById('retrain-status').innerText = "Retraining model...";
-
-        try {
-            const response = await fetch(`${apiBase}/retrain`, {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            document.getElementById('retrain-status').innerText = `Retraining completed! New Test Accuracy: ${result.test_accuracy}`;
-        } catch (err) {
-            document.getElementById('retrain-status').innerText = "Error retraining model.";
-            console.error(err);
-        }
+      } catch (e) {
+        document.getElementById('retrain-status').innerText = 'Retrain failed (network).';
+        console.error(e);
+      }
     });
 
-    // Metrics Chart
-    async function fetchMetrics() {
-        try {
-            const response = await fetch(`${apiBase}/metrics`);
-            const metrics = await response.json();
+    // Metrics chart
+    let chart = null;
+    async function loadMetrics() {
+      try {
+        const r = await fetch(`${API}/metrics`);
+        const j = await r.json();
+        if (r.ok && j.test_accuracy !== undefined) {
+          const data = [j.test_accuracy, j.test_loss || 0, (j.precision || 0), (j.recall || 0), (j.f1_score || 0)];
+          const labels = ['Accuracy', 'Loss', 'Precision', 'Recall', 'F1 Score'];
 
-            const ctx = document.getElementById('metricsChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Accuracy', 'Loss', 'Precision', 'Recall', 'F1 Score'],
-                    datasets: [{
-                        label: 'CIFAR-10 Model Metrics',
-                        data: [
-                            metrics.test_accuracy,
-                            metrics.test_loss,
-                            metrics.precision,
-                            metrics.recall,
-                            metrics.f1_score
-                        ],
-                        backgroundColor: [
-                            'rgba(54, 162, 235, 0.7)',
-                            'rgba(255, 99, 132, 0.7)',
-                            'rgba(255, 206, 86, 0.7)',
-                            'rgba(75, 192, 192, 0.7)',
-                            'rgba(153, 102, 255, 0.7)'
-                        ],
-                        borderColor: [
-                            'rgba(54, 162, 235, 1)',
-                            'rgba(255, 99, 132, 1)',
-                            'rgba(255, 206, 86, 1)',
-                            'rgba(75, 192, 192, 1)',
-                            'rgba(153, 102, 255, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: false },
-                        title: { display: true, text: 'Model Evaluation Metrics' }
-                    },
-                    scales: {
-                        y: { beginAtZero: true }
-                    }
-                }
-            });
-        } catch (err) {
-            console.error("Failed to fetch metrics:", err);
+          if (chart) { chart.destroy(); chart = null; }
+          const ctx = document.getElementById('metricsChart').getContext('2d');
+          chart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Model metrics', data, backgroundColor: 'rgba(54, 162, 235, 0.7)' }] },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+          });
+        } else {
+          // empty placeholder or no metrics yet
+          if (chart) { chart.destroy(); chart = null; }
         }
+      } catch (e) { console.error('Metrics load failed', e); }
     }
 
-    fetchMetrics();
-
-    // Uptime info
-    async function fetchUptime() {
-        try {
-            const response = await fetch(`${apiBase}/uptime`);
-            const data = await response.json();
-            document.getElementById('uptime').innerText = `Server Uptime: ${data.uptime}`;
-        } catch (err) {
-            document.getElementById('uptime').innerText = "Failed to fetch uptime info.";
-            console.error(err);
-        }
+    // Uptime
+    async function loadUptime() {
+      try {
+        const r = await fetch(`${API}/uptime`);
+        const j = await r.json();
+        document.getElementById('uptime').innerText = `Server Uptime: ${j.uptime}`;
+      } catch (e) {
+        document.getElementById('uptime').innerText = 'Uptime not available.';
+      }
     }
 
-    fetchUptime();
-    setInterval(fetchUptime, 60000); // Refresh uptime every 1 min
-</script>
-```
-
+    loadMetrics();
+    loadUptime();
+    setInterval(loadUptime, 60000);
+  </script>
 </body>
 </html>
+
