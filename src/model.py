@@ -1,7 +1,13 @@
 """
 src/model.py
 
-Clean and production-ready model utilities for CIFAR-10.
+CNN model utilities for CIFAR-10.
+Handles:
+
+* Model architecture
+* Compilation
+* Callbacks
+* Safe saving & loading in native `.keras` format
 """
 
 import os
@@ -14,7 +20,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-# Logging setup
+# Logger setup
 logger = logging.getLogger("model")
 if not logger.handlers:
     handler = logging.StreamHandler()
@@ -23,21 +29,17 @@ if not logger.handlers:
     logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-# Default directories
 MODELS_DIR = "models"
-LATEST_MODEL_NAME = "cifar10_model_latest.keras"
+LATEST_MODEL = "cifar10_model_latest.keras"
 
-
-# ----------------------------------------------------------
-# MODEL ARCHITECTURE
-# ----------------------------------------------------------
+# -----------------------------------------------------
+# Model Architecture
+# -----------------------------------------------------
 def create_cifar10_model(
     input_shape: Tuple[int, int, int] = (32, 32, 3),
     num_classes: int = 10
 ) -> keras.Model:
-    """
-    Builds the CNN architecture used for CIFAR-10.
-    """
+
     inputs = keras.Input(shape=input_shape)
 
     # Block 1
@@ -45,7 +47,7 @@ def create_cifar10_model(
     x = layers.BatchNormalization()(x)
     x = layers.Conv2D(32, 3, padding="same", activation="relu")(x)
     x = layers.BatchNormalization()(x)
-    x = layers.MaxPooling2D(2)(x)
+    x = layers.MaxPooling2D()(x)
     x = layers.Dropout(0.25)(x)
 
     # Block 2
@@ -53,13 +55,13 @@ def create_cifar10_model(
     x = layers.BatchNormalization()(x)
     x = layers.Conv2D(64, 3, padding="same", activation="relu")(x)
     x = layers.BatchNormalization()(x)
-    x = layers.MaxPooling2D(2)(x)
+    x = layers.MaxPooling2D()(x)
     x = layers.Dropout(0.25)(x)
 
     # Block 3
     x = layers.Conv2D(128, 3, padding="same", activation="relu")(x)
     x = layers.BatchNormalization()(x)
-    x = layers.MaxPooling2D(2)(x)
+    x = layers.MaxPooling2D()(x)
     x = layers.Dropout(0.4)(x)
 
     # Dense head
@@ -70,137 +72,39 @@ def create_cifar10_model(
 
     outputs = layers.Dense(num_classes, activation="softmax")(x)
 
-    model = keras.Model(inputs, outputs, name="cifar10_cnn")
-    logger.info("CIFAR-10 model built successfully.")
-    return model
+    return keras.Model(inputs, outputs, name="cifar10_cnn")
 
-
-# ----------------------------------------------------------
-# COMPILE MODEL
-# ----------------------------------------------------------
-def compile_model(model: keras.Model, learning_rate: float = 1e-3) -> keras.Model:
-    """
-    Compiles model with Adam + categorical crossentropy.
-    """
+# -----------------------------------------------------
+# Compile Helper
+# -----------------------------------------------------
+def compile_model(model: keras.Model, learning_rate: float = 1e-3):
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+        optimizer=keras.optimizers.Adam(learning_rate),
         loss="categorical_crossentropy",
-        metrics=["accuracy"]
+        metrics=["accuracy"],
     )
-    logger.info("Model compiled. LR=%.6f", learning_rate)
+    logger.info(f"Model compiled. LR={learning_rate}")
     return model
 
+# -----------------------------------------------------
+# Save & Load Utilities
+# -----------------------------------------------------
+def save_model(model: keras.Model, filename: str = LATEST_MODEL) -> str:
+    os.makedirs(MODELS_DIR, exist_ok=True)
 
-# ----------------------------------------------------------
-# CALLBACKS
-# ----------------------------------------------------------
-def get_callbacks(models_dir: str = MODELS_DIR) -> List[keras.callbacks.Callback]:
-    """
-    Returns EarlyStopping, ReduceLROnPlateau, ModelCheckpoint.
-    """
-    os.makedirs(models_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    full_path = os.path.join(MODELS_DIR, filename)
+    model.save(full_path)
 
-    checkpoint_path = os.path.join(models_dir, f"checkpoint_{timestamp}.keras")
-
-    return [
-        keras.callbacks.EarlyStopping(
-            monitor="val_loss",
-            patience=3,
-            restore_best_weights=True,
-            verbose=1
-        ),
-        keras.callbacks.ReduceLROnPlateau(
-            monitor="val_loss",
-            factor=0.5,
-            patience=2,
-            min_lr=1e-7,
-            verbose=1
-        ),
-        keras.callbacks.ModelCheckpoint(
-            checkpoint_path,
-            monitor="val_loss",
-            save_best_only=True,
-            verbose=1
-        ),
-    ]
+    logger.info(f"Model saved: {full_path}")
+    return full_path
 
 
-# ----------------------------------------------------------
-# SAVE & LOAD MODEL
-# ----------------------------------------------------------
-def save_model(model: keras.Model,
-               name: Optional[str] = None,
-               models_dir: str = MODELS_DIR,
-               make_latest: bool = True) -> str:
-    """
-    Saves the model in `.keras` format.
-    Also updates the `latest` model alias.
-    """
-    os.makedirs(models_dir, exist_ok=True)
-
-    if name:
-        file_path = os.path.join(models_dir, name)
-    else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = os.path.join(models_dir, f"cifar10_model_{timestamp}.keras")
-
-    model.save(file_path)
-    logger.info("Model saved at %s", file_path)
-
-    if make_latest:
-        latest_path = os.path.join(models_dir, LATEST_MODEL_NAME)
-        shutil.copy2(file_path, latest_path)
-        logger.info("Updated latest model -> %s", latest_path)
-
-    return file_path
-
-
-def load_model(path: Optional[str] = None,
-               models_dir: str = MODELS_DIR) -> keras.Model:
-    """
-    Loads the model from disk.
-    If no path provided → loads the 'latest' model.
-    """
+def load_model(path: str = None) -> keras.Model:
     if path is None:
-        path = os.path.join(models_dir, LATEST_MODEL_NAME)
+        path = os.path.join(MODELS_DIR, LATEST_MODEL)
 
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Model file not found at: {path}")
+        raise FileNotFoundError(f"Model not found at: {path}")
 
-    logger.info("Loading model from %s", path)
-    model = keras.models.load_model(path)
-    logger.info("Model loaded successfully.")
-    return model
-
-
-# ----------------------------------------------------------
-# SUMMARY STRING
-# ----------------------------------------------------------
-def model_summary_str(model: Optional[keras.Model] = None) -> str:
-    """
-    Returns the model summary as a clean string.
-    """
-    if model is None:
-        model = create_cifar10_model()
-
-    lines = []
-    model.summary(print_fn=lambda s: lines.append(s))
-    return "\n".join(lines)
-
-
-# ----------------------------------------------------------
-# SELF TEST
-# ----------------------------------------------------------
-if __name__ == "__main__":
-    logger.info("Running model.py self-test…")
-    try:
-        m = create_cifar10_model()
-        m = compile_model(m)
-        p = save_model(m, make_latest=False)
-        _ = load_model(p)
-        os.remove(p)
-        logger.info("Self-test passed.")
-    except Exception as e:
-        logger.error("Self-test failed: %s", e)
-
+    logger.info(f"Loading model: {path}")
+    return keras.models.load_model(path)
