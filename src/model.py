@@ -108,3 +108,4 @@ def load_model(path: str = None) -> keras.Model:
 
     logger.info(f"Loading model: {path}")
     return keras.models.load_model(path)
+
