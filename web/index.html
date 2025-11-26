@@ -1,0 +1,52 @@
+<!-- web/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CIFAR-10 Image Classification Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>CIFAR-10 Image Classification Dashboard</h1>
+
+    <!-- Prediction card -->
+    <section class="card">
+      <h2>Predict Single Image</h2>
+      <input id="single-file" type="file" accept="image/*" />
+      <button id="predict-btn" class="btn primary">Predict</button>
+      <div id="predict-result" class="result"></div>
+    </section>
+
+    <!-- Retrain card -->
+    <section class="card">
+      <h2>Retrain Model (upload multiple files)</h2>
+      <p class="small-muted">To allow auto-detection of labels, upload files preserving folder structure in the filename (e.g. <code>cat/img1.jpg</code>).</p>
+      <input id="retrain-files" type="file" multiple />
+      <button id="retrain-btn" class="btn success">Trigger Retraining</button>
+      <div id="retrain-result" class="result"></div>
+    </section>
+
+    <!-- Metrics / images -->
+    <section class="card large">
+      <h2>Model Metrics</h2>
+      <div id="metrics-area" class="metrics">
+        <p id="metrics-text">No metrics yet. Run training to generate logs.</p>
+        <div class="images-grid" id="sample-predictions">
+          <!-- optional: sample images will be inserted here if available -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Uptime -->
+    <section class="card">
+      <h2>Server Uptime</h2>
+      <p id="uptime">Loading uptime...</p>
+    </section>
+
+  </main>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>
