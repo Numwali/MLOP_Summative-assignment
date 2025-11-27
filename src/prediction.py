@@ -1,59 +1,36 @@
-"""
-prediction.py
-Utilities to load model and run single-image / batch predictions.
-"""
 import os
-import io
-import json
-from typing import List, Tuple
 import numpy as np
-from PIL import Image
 from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array, load_img
 
+# CIFAR-10 class names
+class_names = ['airplane','automobile','bird','cat','deer','dog','frog','horse','ship','truck']
 
-DEFAULT_LATEST = os.path.join('models', 'cifar10_model_latest.keras')
-CLASSES_PATH = os.path.join('models', 'classes.json')
+def load_latest_model(path="models/cifar10_model_latest.keras"):
+    """Load the latest trained model (.keras)"""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Latest model not found at {path}")
+    return load_model(path)
 
+def preprocess_for_predict(img_array):
+    """Normalize image array and add batch dimension"""
+    x = img_array.astype('float32') / 255.0
+    x = np.expand_dims(x, axis=0)
+    return x
 
-class Predictor:
-    def __init__(self, model_path: str = DEFAULT_LATEST, classes_path: str = CLASSES_PATH):
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Model not found at {model_path}")
-        self.model = load_model(model_path)
-        if os.path.exists(classes_path):
-            with open(classes_path, 'r') as f:
-                self.classes = json.load(f)
-        else:
-            # fallback to CIFAR-10 default order
-            self.classes = ['airplane','automobile','bird','cat','deer','dog','frog','horse','ship','truck']
+def decode_predictions_array(probs, top_k=3):
+    """Return top-k class names and probabilities"""
+    top_idxs = probs.argsort()[::-1][:top_k]
+    return [(class_names[i], float(probs[i])) for i in top_idxs]
 
-    def _prepare_pil(self, pil_img: Image.Image, target_size=(32,32)) -> np.ndarray:
-        pil = pil_img.convert('RGB').resize(target_size)
-        arr = np.array(pil).astype('float32') / 255.0
-        return np.expand_dims(arr, 0)
-
-    def predict_from_pil(self, pil_img: Image.Image, top_k: int = 3):
-        x = self._prepare_pil(pil_img)
-        probs = self.model.predict(x)[0]
-        return self._format_probs(probs, top_k)
-
-    def predict_from_bytes(self, img_bytes: bytes, top_k: int = 3):
-        pil = Image.open(io.BytesIO(img_bytes))
-        return self.predict_from_pil(pil, top_k)
-
-    def predict_from_file(self, path: str, top_k: int = 3):
-        pil = Image.open(path)
-        return self.predict_from_pil(pil, top_k)
-
-    def _format_probs(self, probs: np.ndarray, top_k: int):
-        idxs = probs.argsort()[::-1][:top_k]
-        results = []
-        for i in idxs:
-            results.append({
-                'class_index': int(i),
-                'label': self.classes[i],
-                'confidence': float(probs[i])
-            })
-        predicted = results[0]
-        return {'predicted': predicted, 'top_k': results}
-
+def predict_image(model, img_array, top_k=3):
+    """Predict single image array"""
+    x = preprocess_for_predict(img_array)
+    probs = model.predict(x)[0]
+    top3 = decode_predictions_array(probs, top_k=top_k)
+    pred_idx = int(np.argmax(probs))
+    return {
+        "pred_class": class_names[pred_idx],
+        "confidence": float(probs[pred_idx]),
+        "top3": top3
+    }
