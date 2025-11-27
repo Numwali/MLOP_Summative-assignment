@@ -4,5 +4,8 @@ tensorflow
 numpy
 pillow
 matplotlib
+seaborn
 scikit-learn
-
+streamlit
+locust
+requests
