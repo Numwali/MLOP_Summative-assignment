@@ -1,9 +1,9 @@
 version: '3.9'
 services:
-  ml-api:
+  api:
     build: .
     container_name: cifar10_api
-    command: uvicorn app.app:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.app:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     volumes:
@@ -11,12 +11,12 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
     environment:
-      - ENV=prod
+      - PYTHONUNBUFFERED=1
 
   ui:
     build: .
     container_name: cifar10_ui
-    command: streamlit run ui/streamlit_app.py --server.port 8501 --server.headless true
+    command: streamlit run app_ui/streamlit_app.py --server.port 8501 --server.headless true
     ports:
       - "8501:8501"
     volumes:
