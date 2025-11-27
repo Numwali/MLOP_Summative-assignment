@@ -1,185 +1,96 @@
-# CIFAR-10 MLOps Pipeline  
-### Full End-to-End Machine Learning Operations System
+# CIFAR-10 MLOps Project
+
+## Overview
+End-to-end CIFAR-10 image classification MLOps project:
+- Notebook: data exploration, preprocessing, training, evaluation
+- Model: CNN saved as `models/cifar10_model_latest.keras`
+- API: FastAPI app at `app/app.py` for predict, upload, retrain, metrics, uptime
+- UI: Streamlit app at `app_ui/streamlit_app.py`
+- Retraining: upload dataset (ZIP) -> extract to `data/train/` -> `/retrain/` triggers fine-tune
+- Load testing: Locust config in `locust/locustfile.py`
+- Docker: `Dockerfile` + `docker-compose.yml` for containerized deployment
 
 ---
 
-## 1. Introduction
-This project implements a complete **Machine Learning Operations (MLOps)** pipeline using the **CIFAR-10 image classification dataset**. It demonstrates production-grade ML workflows including training, versioning, deployment, monitoring, and a real-time prediction dashboard.
+## Quick start (local)
 
-The system includes:
-- A fully trained CIFAR-10 CNN model  
-- A FastAPI backend for predictions, metrics & retraining  
-- A modern, responsive web dashboard  
-- Model retraining pipeline for continuous improvement  
-- Dockerized deployment for reproducibility  
+1. **Create & activate virtualenv**
+```bash
+python -m venv venv
+# Windows
+venv\\Scripts\\activate
+# mac / linux
+source venv/bin/activate
+```
 
----
+2.**Install dependencies**
 
-## 2. Project Structure
-
-MLOP_Summative-assignment/
-│── main.py
-│── Dockerfile
-│── docker-compose.yml
-│── requirements.txt
-│── README.md
-│
-│── models/
-│ └── cifar10_model_latest.keras
-│
-│── logs/
-│ └── training_logs.json
-│
-│── src/
-│ ├── model.py
-│ ├── train.py
-│ ├── api.py
-│ ├── prediction.py
-│ └── preprocessing.py
-│
-└── web/
-├── index.html
-├── dashboard.js
-└── style.css
-
-
----
-
-## 3. System Overview
-
-This project follows a modular and scalable MLOps architecture:
-
-### **3.1 Model Development**
-- A CNN classifier is trained using TensorFlow/Keras.
-- Metrics (loss, accuracy) are logged to `logs/training_logs.json`.
-- Models are saved and versioned in the `models/` directory.
-
-### **3.2 Preprocessing**
-- Images are resized to **32x32**, normalized, and converted to RGB.
-- All preprocessing is implemented inside `src/preprocessing.py`.
-
-### **3.3 FastAPI Backend**
-Exposes four main ML endpoints:
-
-| Endpoint | Description |
-|----------|-------------|
-| `/predict` | Classifies a single uploaded image |
-| `/retrain` | Incrementally retrains the model with new labelled images |
-| `/metrics` | Returns stored training performance metrics |
-| `/uptime` | Returns server uptime for monitoring |
-
-Static web dashboard is served directly from `web/`.
-
-### **3.4 Web Dashboard**
-The dashboard supports:
-- Real-time predictions  
-- Visualization of model probability distribution  
-- Monitoring model uptime  
-- Viewing stored training metrics  
-- Clean UI built with HTML/CSS/JS  
-
-### **3.5 Model Retraining**
-The retraining pipeline:
-1. Reads uploaded images with folder-based labels  
-2. Preprocesses and validates labels  
-3. Mixes with sampled CIFAR-10 data  
-4. Retrains for 3 lightweight epochs  
-5. Saves and updates the latest model version  
-
-### **3.6 Dockerized Deployment**
-The entire system is containerized using a single Dockerfile for reproducible deployment.
-
----
-
-## 4. How to Run the Project
-
-### **4.1 Install Dependencies**
-
+```bash
 pip install -r requirements.txt
+```
 
-## **4.2 Run FastAPI Backend**
-uvicorn main:app --reload
+3. **Run FastAPI**
 
-## **4.3 Open Dashboard**
+```bash
+uvicorn app.app:app --reload --host 0.0.0.0 --port 8000
+# then visit http://127.0.0.1:8000/docs
+```
 
-http://localhost:8000
+4. **Run Streamlit UI
+```bash
+streamlit run app_ui/streamlit_app.py
+# UI available at http://localhost:8501
+```
+ 5. **Test Predict**
+ - Use Swagger UI or:
 
-## 5. **Dashboard Features**
+```bash
+curl -X POST "http://127.0.0.1:8000/predict/" -F "file=@notebook/test_images/sample1.png"
+```
+6. **Upload data for retrain**
 
-The dashboard provides:
+- Create a ZIP with folder layout like:
+mydata.zip
+  └─ dog/
+     └─ img1.jpg
+  └─ cat/
+     └─ img2.jpg
 
-✔ Upload image → get instant prediction
-✔ Probability bar chart for all CIFAR-10 classes
-✔ Model uptime monitor
-✔ Training metrics visualization
-✔ File upload tool for retraining
-✔ Fully responsive UI
+- Post to /upload-data (via Swagger or UI). Then call /retrain/
 
-## **6. Model Performance**
+7. **Load test with Locust**
+```bash
+locust -f locust/locustfile.py --host=http://127.0.0.1:8000
 
-logs/training_logs.json
+# Open http://localhost:8089 to run the flood
+```
 
-## **7. Retraining Process**
+8. **Files Structure**
+models/
+  cifar10_model_latest.keras
+  classes.json
 
-cat/image1.jpg
-dog/image2.png
-truck/photo3.jpeg
+data/
+  train/        # retrain uploads extracted here
+  sample/       # sample test images
 
+src/
+  preprocessing.py
+  model.py
+  prediction.py
+  retrain.py
 
-## **8. Docker Deployment**
+app/
+  app.py
+  utils.py
 
-docker build -t cifar10-mlops .
+app_ui/
+  streamlit_app.py
 
-## 8.1 Build the image
+locust/
+  locustfile.py
 
-docker build -t cifar10-mlops .
-
-## 8.2 Run the container
-
-docker run -p 8000:8000 cifar10-mlops
-
-## 8.3 Dashboard available at:
-
-http://localhost:8000
-
-## **9. Monitoring & Logging**
-
-Model training logs: logs/training_logs.json
-
-Monitoring uptime: /uptime
-
-API health & docs: http://localhost:8000/docs
-
-The dashboard fetches this data automatically.
-
-## **10. Academic Value**
-
-This project demonstrates strong competency in MLOps:
-
-Model training + evaluation
-
-Versioning and reproducibility
-
-API development for ML systems
-
-Real-time inference dashboard
-
-Monitoring & logging
-
-Incremental training (continual learning)
-
-Dockerized MLOps deployment
-
-This implementation matches real-world ML production systems.
-
-## **11. Conclusion**
-
-A complete end-to-end MLOps pipeline was successfully implemented.
-From preprocessing and model training to deployment, monitoring, retraining, and Dockerization — this project reflects both technical depth and strong MLOps practices.
-
-## **12. Acknowledgements**
-
-Special thanks to instructors and course materials that guided the development of this system.
-
----
-
+Dockerfile
+docker-compose.yml
+requirements.txt
+```
