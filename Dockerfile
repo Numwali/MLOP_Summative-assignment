@@ -1,24 +1,19 @@
-
----
-
-## 2) Dockerfile  
-**Location:** `Dockerfile` (root)
-
-```dockerfile
+# Dockerfile
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
 WORKDIR /app
+
+# system deps
+RUN apt-get update && apt-get install -y build-essential libglib2.0-0 libsm6 libxrender1 libxext6 wget && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# copy app code
 COPY . .
 
-# expose ports for API and streamlit
-EXPOSE 8000 8501
+# create folders
+RUN mkdir -p data/train data/sample logs models
 
-# default to run uvicorn (API). For UI or others, override command in docker-compose
+EXPOSE 8000
+
 CMD ["uvicorn", "app.app:app", "--host", "0.0.0.0", "--port", "8000"]
-

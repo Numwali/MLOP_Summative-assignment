@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: cifar10-ml-api
+    env: docker
+    plan: free
+    # No build command since Dockerfile used
+    dockerfilePath: Dockerfile
+    # optional: instance count / cpu
+    # instanceCount: 1
+
