@@ -1,8 +1,8 @@
 {
-  "accuracy": 0.8146,
-  "precision_weighted": 0.8202400714244131,
-  "recall_weighted": 0.8146,
-  "f1_weighted": 0.8113063999846412,
-  "model_used": "models/cifar10_model_latest.h5",
-  "timestamp": "2025-11-25T11:56:27.760367"
+  "accuracy": 0.7936,
+  "precision_weighted": 0.7983825167698451,
+  "recall_weighted": 0.7936,
+  "f1_weighted": 0.7897895512338974,
+  "model_used": "models/cifar10_model_latest.keras",
+  "timestamp": "2025-11-27T13:36:01.617509"
 }

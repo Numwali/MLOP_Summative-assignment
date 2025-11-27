@@ -1,12 +1,24 @@
-version: "3.8"
+version: '3.9'
 services:
-  api:
+  ml-api:
     build: .
-    container_name: cifar_api
+    container_name: cifar10_api
     ports:
       - "8000:8000"
     volumes:
-      - ./:/app
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
     environment:
-      - PYTHONUNBUFFERED=1
+      - ENV=prod
+  ui:
+    build: .
+    container_name: cifar10_ui
+    command: streamlit run ui/streamlit_app.py --server.port 8501
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
 
