@@ -11,6 +11,8 @@ End-to-end CIFAR-10 image classification MLOps project:
 - Docker: `Dockerfile` + `docker-compose.yml` for containerized deployment
 
 ---
+**Demo Video link**: https://www.youtube.com/watch?v=dTch9ntPY_U
+**Deployment link**: https://mlop-summative-assignment-qtyd.onrender.com
 
 ## Quick start (local)
 
