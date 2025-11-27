@@ -1,118 +1,86 @@
-"""
-retrain.py
-Loads new images under data/retrain, backs up latest model, fine-tunes and saves a new model.
-"""
-import os
-import shutil
-from datetime import datetime
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.callbacks import EarlyStopping
+from src.preprocessing import preprocess_single_image
 import numpy as np
-from tensorflow.keras.models import load_model
-from tensorflow.keras import callbacks
-from .preprocessing import preprocess_arrays, load_cifar10, preprocess_single_image_from_file
+from PIL import Image
+import os
+import random
+
+# ---------------------------------------
+# RETRAINING PIPELINE
+# ---------------------------------------
+def retrain_model(existing_model, data_path, save_path):
+    datagen = ImageDataGenerator(
+        rescale=1/255.,
+        rotation_range=20,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        validation_split=0.2
+    )
+
+    train_gen = datagen.flow_from_directory(
+        data_path,
+        target_size=(32, 32),
+        batch_size=32,
+        class_mode="categorical",
+        subset='training'
+    )
+
+    val_gen = datagen.flow_from_directory(
+        data_path,
+        target_size=(32, 32),
+        batch_size=32,
+        class_mode="categorical",
+        subset='validation'
+    )
+
+    es = EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
+
+    history = existing_model.fit(
+        train_gen,
+        validation_data=val_gen,
+        epochs=5,
+        callbacks=[es],
+        verbose=1
+    )
+
+    existing_model.save(save_path)
+    return history, existing_model
 
 
-DEFAULT_LATEST = os.path.join('models', 'cifar10_model_latest.keras')
+# ---------------------------------------
+# GRADCAM
+# ---------------------------------------
+def generate_gradcam(model):
+    # Pick a random image
+    img_array = np.random.randint(0, 255, (32, 32, 3), dtype=np.uint8)
+    img = Image.fromarray(img_array)
+
+    # Dummy GradCAM (simple heatmap)
+    heatmap = np.uint8(np.random.rand(32, 32) * 255)
+    heatmap_img = Image.fromarray(heatmap).resize((128, 128))
+    return heatmap_img
 
 
-def load_images_from_retrain_dir(retrain_dir='data/retrain', target_size=(32,32)):
-    Xr, yr = [], []
-    if not os.path.exists(retrain_dir):
-        return np.empty((0,)+target_size+(3,)), np.array([])
-    for class_entry in sorted(os.listdir(retrain_dir)):
-        class_path = os.path.join(retrain_dir, class_entry)
-        if not os.path.isdir(class_path):
-            continue
-        # Resolve class index
-        if class_entry.isdigit():
-            class_idx = int(class_entry)
-        else:
-            # try to read classes.json if present
-            classes_json = os.path.join('models', 'classes.json')
-            if os.path.exists(classes_json):
-                import json
-                with open(classes_json, 'r') as f:
-                    classes = json.load(f)
-                if class_entry in classes:
-                    class_idx = classes.index(class_entry)
-                else:
-                    print(f"[retrain] Unknown class folder '{class_entry}', skipping.")
-                    continue
-            else:
-                print(f"[retrain] classes.json not found and folder '{class_entry}' is not numeric. Skipping.")
-                continue
-        for fname in sorted(os.listdir(class_path)):
-            if not fname.lower().endswith(('.png','.jpg','.jpeg')):
-                continue
-            fpath = os.path.join(class_path, fname)
-            try:
-                arr = preprocess_single_image_from_file(fpath, target_size=target_size)
-                Xr.append(arr)
-                yr.append(class_idx)
-            except Exception as e:
-                print(f"[retrain] Failed to load {fpath}: {e}")
-    if len(Xr) == 0:
-        return np.empty((0,)+target_size+(3,)), np.array([])
-    Xr = np.vstack([x[np.newaxis, ...] if x.ndim==3 else x for x in Xr])
-    yr = np.array(yr)
-    return Xr, yr
+# ---------------------------------------
+# FILTER VISUALIZATION
+# ---------------------------------------
+def extract_filters(model):
+    layer = model.layers[0]
+    filters = layer.get_weights()[0]
+    filt = filters[:, :, :, 0]
+
+    filt = (filt - filt.min()) / (filt.max() - filt.min())
+    filt = np.uint8(filt * 255)
+
+    return Image.fromarray(filt)
 
 
-def retrain_from_directory(retrain_dir='data/retrain', epochs=3, batch_size=64, backup=True):
-    Xr, yr = load_images_from_retrain_dir(retrain_dir)
-    if Xr.size == 0:
-        print('[retrain] No retrain data found.')
-        return None
-    # Convert to proper shapes and preprocess
-    # Currently Xr is batch x H x W x C (uint8)
-    Xr = Xr.astype('float32') / 255.0
-    from tensorflow.keras.utils import to_categorical
-    classes_json = os.path.join('models', 'classes.json')
-    if os.path.exists(classes_json):
-        import json
-        with open(classes_json, 'r') as f:
-            classes = json.load(f)
-        num_classes = len(classes)
-    else:
-        num_classes = 10
+# ---------------------------------------
+# CONFUSED SAMPLES (RANDOM)
+# ---------------------------------------
+def get_confused_samples(model):
+    img = np.uint8(np.random.rand(32, 32, 3) * 255)
+    return Image.fromarray(img)
 
-    yr_cat = to_categorical(yr, num_classes)
-
-    latest = DEFAULT_LATEST
-    if not os.path.exists(latest):
-        raise FileNotFoundError('[retrain] Latest model not found. Train first.')
-    if backup:
-        backup_path = f"models/cifar10_model_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.keras"
-        shutil.copy2(latest, backup_path)
-        print(f"[retrain] Backed up latest model to {backup_path}")
-
-    model = load_model(latest)
-    # compile with a lower LR for fine-tuning
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=1e-4),
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
-
-    cb = [
-        callbacks.EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True),
-        callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=1, min_lr=1e-7)
-    ]
-
-    history = model.fit(Xr, yr_cat, epochs=epochs, batch_size=batch_size, validation_split=0.1, callbacks=cb)
-
-    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    newpath = os.path.join('models', f'cifar10_model_retrained_{ts}.keras')
-    model.save(newpath)
-    model.save(latest)
-    print(f"[retrain] Retrained model saved to {newpath} and overwritten {latest}")
-
-    # save retrain log summary
-    retrain_log = {
-        'timestamp': ts,
-        'retrain_dir': retrain_dir,
-        'new_model': newpath,
-        'history': {k: [float(x) for x in v] for k, v in history.history.items()}
-    }
-    import json
-    with open(os.path.join('logs', f'retrain_log_{ts}.json'), 'w') as f:
-        json.dump(retrain_log, f, indent=2)
-    print('[retrain] retrain log saved to logs/')
-    return retrain_log
